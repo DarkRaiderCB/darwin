@@ -67,6 +67,144 @@ MODEL_NAME = os.getenv("MODEL")
 MAX_TOKENS = 10000
 TEMPERATURE = 0
 
+def convert_bytes_to_original_format(file_bytes, mime_type, save_path):
+    if mime_type.startswith('text'):
+        # Save text file
+        with open(save_path, 'w', encoding='utf-8') as text_file:
+            text_file.write(file_bytes.decode('utf-8'))
+    elif mime_type.startswith('image'):
+        # Save image file
+        img = Image.open(io.BytesIO(file_bytes))
+        img.save(save_path)
+    elif mime_type == 'application/json':
+        # Save JSON file
+        with open(save_path, 'w', encoding='utf-8') as json_file:
+            json.dump(json.loads(file_bytes.decode('utf-8')), json_file, indent=2)
+    elif mime_type == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+        # Save Excel file
+        df = pd.read_excel(io.BytesIO(file_bytes))
+        df.to_excel(save_path, index=False)
+    elif mime_type == 'application/pdf':
+        # Save PDF file
+        # Example: pdf_to_text_and_save(file_bytes, save_path)
+        pass
+    elif mime_type == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+        # Save DOCX file
+        doc = Document(io.BytesIO(file_bytes))
+        doc.save(save_path)
+    else:
+        # Handle other types or raise an exception for unknown types
+        raise ValueError(f"Unsupported MIME type: {mime_type}")
+def store_file_in_mongodb(file_path, collection_name):
+    fs = GridFS(db, collection=collection_name)
+    with open(file_path, 'rb') as file:
+        # Determine file type using mimetypes
+        mime_type, _ = mimetypes.guess_type(file_path)
+        metadata = {'mime_type': mime_type}
+        file_id = fs.put(file, filename=os.path.basename(file_path), metadata=metadata)
+    return file_id
+def retrieve_file_from_mongodb(file_id, collection_name):
+    fs = GridFS(db, collection=collection_name)
+    file_data = fs.get(file_id)
+    # Retrieve metadata
+    metadata = file_data.metadata
+    mime_type = metadata.get('mime_type', 'application/octet-stream')
+    return file_data.read(), mime_type
+def get_folder_structure(dir_path,parent=""):
+    is_directory = os.path.isdir(dir_path)
+    name = os.path.basename(dir_path)
+    relative_path = os.path.relpath(dir_path, os.path.dirname(dir_path))
+    directory_object = {
+        'parent': os.path.dirname(dir_path),
+        'path': relative_path,
+        'name': name,
+        'type': 'directory' if is_directory else 'file',
+    }
+    if is_directory:
+        children = []
+        for child in os.listdir(dir_path):
+            child_path = os.path.join(dir_path, child)
+            children.append(get_folder_structure(child_path,parent=dir_path))
+        directory_object['children'] = children
+    return directory_object
+@app.post("/serve_file")
+async def serve_file(request: Request):
+    data = await request.form()
+    filePath = data["path"]
+    # serve file using fastapi FileResponse
+    pwd = os.path.join(os.getcwd(), 'data')
+    path = os.path.join(pwd, filePath)
+    return fastapi.responses.FileResponse(path)
+@app.post("/folder_structure")
+async def folder_structure(request:Request):
+    data = await request.form()
+    root_dir = data["root_dir"]
+    structure = get_folder_structure(root_dir)
+    return structure
+@app.get("/get_file")
+async def get_file(request: Request):
+    data = await request.form()
+    path = data["path"]
+    with open(path, "rb") as file:
+        file_bytes = file.read()
+    return file_bytes
+@app.post("/create_project") # creates a new project and updates the global state with the project data
+async def create_project(request: Request):
+    data = await request.form()
+    project_name = data.get("project_name")
+    # check if project already exists
+    for key in db.getall():
+        if key == project_name:
+            return {"message": "Project already exists"}
+    db.set(project_name,[])
+    return {"project_name": project_name}
+@app.post("/get_project_data") # updates the global state with the project data
+async def get_project(request: Request):
+    data = await request.form()
+    project_name = data.get("project_name")
+    project = db.get(project_name)
+    print(project)
+    return project
+@app.delete("/delete_project") # deletes the project
+async def delete_project(request: Request):
+    data = await request.form()
+    project_name = data.get("project_name")
+    for key in db.getall():
+        if key == project_name:
+            db.rem(key)
+            return {"message": "Project deleted successfully"}
+    return {"message": "Project not found"}
+    
+@app.get("/get_project_names") # returns key value pairs of id and project name
+async def get_projects():
+    list = []
+    for key in db.getall():
+        project_name = key
+        list.append(project_name) 
+    return list
+@app.post("/chat")
+async def chat(request: Request,file: UploadFile = None,image: UploadFile = None):
+    """
+    FORM DATA FORMAT:
+    {
+        "project_name": "project_name",
+        "customer_message": "message"
+    }
+    """
+    data = await request.form()
+    project_name = data.get("project_name")
+    customer_message = data.get("customer_message")
+    global StateOfMind 
+    StateOfMind = customer_message
+    original_query = customer_message
+    global history
+    global prevcoder
+    prevcoder = False
+    history = get_db(project_name) if project_name in db.getall() else []
+    history.append({"user_query":original_query})
+    update_db(project_name,{"user_query":original_query})
+    return StreamingResponse(chatGPT(project_name,original_query))
+
 def chatGPT(project_name, original_query):
     global history
     global web_search_response

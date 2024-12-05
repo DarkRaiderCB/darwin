@@ -1,13 +1,11 @@
 import os
 import json
 
-from aider.aider.io import InputOutput
-from aider.aider.models import Model
-from aider.aider.repomap import RepoMap
+from .aider.aider.io import InputOutput
+from .aider.aider.models import Model
+from .aider.aider.repomap import RepoMap
 import re
-
 from together import Together
-
 
 def make_query(query, chat, map, cwd):
     q = "Based on the following context:\n" + json.dumps(chat) + f" and the current folder tree(which shows the different files and relevant classes, can be used to analyze/edit existing codebase) : {map}\n\Answer and Code the following query:\n" + query + "Use {cwd} as the current working directory."
