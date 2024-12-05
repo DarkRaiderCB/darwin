@@ -1,0 +1,3 @@
+[submodule "functions/aider_mod"]
+	path = functions/aider_mod
+	url = https://github.com/DarkRaiderCB/aider.git
