@@ -128,7 +128,7 @@ def web_search(query, relevanceSort=False):
     extracted_content = []
     if unique_urls:
         extracted_content = extract_links(list(unique_urls))
-        print("Extracting content from URLs")
+        print("Extracting content from URLs ")
 
     urls = []
     passages = []
@@ -168,6 +168,7 @@ def web_search(query, relevanceSort=False):
             extracted_content.pop(j)
         for j in range(len(extracted_content)):
             passages2.append(extracted_content[j])
+
 
     if relevanceSort:
         bi_encoder_searched_passages = BM25func(passages2, customer_message)
@@ -210,6 +211,7 @@ def web_search(query, relevanceSort=False):
             print(token.choices[0].delta.content, end='', flush=True)
 
     return output
+
 
 if __name__ == "__main__":
     query = input("Enter your query: ")
