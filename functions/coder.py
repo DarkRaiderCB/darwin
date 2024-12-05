@@ -1,9 +1,9 @@
 import os
 import json
 
-from .aider.aider.io import InputOutput
-from .aider.aider.models import Model
-from .aider.aider.repomap import RepoMap
+from .aider_mod.aider.io import InputOutput
+from .aider_mod.aider.models import Model
+from .aider_mod.aider.repomap import RepoMap
 import re
 from together import Together
 
