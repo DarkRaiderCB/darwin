@@ -129,7 +129,7 @@ def web_search(query, relevanceSort=False):
     if unique_urls:
         extracted_content = extract_links(list(unique_urls))
         print("Extracting content from URLs ")
-
+    bi_encoder_searched_passages=""
     urls = []
     passages = []
     con = []
@@ -140,15 +140,19 @@ def web_search(query, relevanceSort=False):
     print("URLS=", urls)
     DataWrtUrls = {}
     passages = []
+    time_for_scraping = time.time()
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
         futures = {executor.submit(scraper, url, con, DataWrtUrls, passages): url for url in urls}
         for future in concurrent.futures.as_completed(futures):
             url = futures[future]
             try:
-                future.result()
+                result = future.result()
             except Exception as exc:
                 print(f'URL {url} generated an exception: {exc}')
+    
+    #print("Passages=",passages)
 
+    print("time for scraping: ",time.time()-time_for_scraping)
     passages2 = []
     i = 0
     try:
@@ -174,6 +178,14 @@ def web_search(query, relevanceSort=False):
         bi_encoder_searched_passages = BM25func(passages2, customer_message)
     else:
         bi_encoder_searched_passages = passages2
+    
+    # if not prod: print(bi_encoder_searched_passages)
+
+    end = time.time()
+
+    # print(f"Runtime of the program is {end - start}")
+
+    lfqa_time = time.time()
 
     question = customer_message
     print("Length of bi_encoder:", len(bi_encoder_searched_passages))

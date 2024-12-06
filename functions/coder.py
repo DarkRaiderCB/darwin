@@ -9,11 +9,11 @@ import re
 from together import Together
 
 def make_query(query, chat, map, cwd):
-    q = "Based on the following context:\n" + json.dumps(chat) + f" and the current folder tree(which shows the different files and relevant classes, can be used to analyze/edit existing codebase) : {map}\nAnswer and Code the following query:\n" + query + "Use {cwd} as the current working directory."
+    q = "Based on the following context:\n" + json.dumps(chat) + f" and the current folder tree(which shows the different files and relevant classes, can be used to analyze/edit existing codebase) : {map}\n\Answer and Code the following query:\n" + query + "Use {cwd} as the current working directory."
     return q
 
 
-class Coder:
+class Coder():
     def __init__(self, project_name, custom_instructions=""):
         import interpreter
         self.chat = []
@@ -81,15 +81,63 @@ class Coder:
             stream=True
         )
 
+        key = None
+        temp = ""
+        self.errors = 0
+        messages = []
+
         for token in response:
             if hasattr(token, 'choices'):
                 chunk = token.choices[0].delta.content
+                
+                # Process and print the streamed content
                 print(chunk, end='', flush=True)
+                
+                if isinstance(chunk, str):
+                    pass
+                
                 self.add_history(chunk)
                 messages.append(chunk)
-                temp += chunk
+                
+                # Logic to manage 'start' and 'end' markers
+                if 'start' in chunk:
+                    key = chunk.get("type", None)
+                elif 'end' in chunk:
+                    # If required, save content to a file
+                    # Uncomment and modify as necessary
+                    # if key == "code":
+                    #     content = temp
+                    #     with open(os.path.join(self.path, "code.py"), "a") as f:
+                    #         f.write(content)
+                    
+                    yield json.dumps({key: temp}).encode("utf-8") + b"\n"
+                    temp = ""
+                else:
+                    # Handle specific content formatting and error tracking
+                    if 'format' in chunk and chunk.get("format") == "active_line":
+                        pass
+                    
+                    if 'content' in chunk:
+                        if isinstance(chunk['content'], dict):
+                            chunk = chunk['content']
+                        
+                        if key == "console" and chunk.get("format") == "output" and "Error" in chunk.get("content", ""):
+                            self.errors += 1
+                            if self.errors > 2:
+                                self.interpreter.chat("Too many errors. Exiting.")
+                                self.summary = (
+                                    "Got errors while writing code, here is a summary of what was done.\n" +
+                                    self.generate_summary(self.parse_output(messages)) +
+                                    "Recommend calling Web Search."
+                                )
+                                yield json.dumps({"exit": True}).encode("utf-8") + b"\n"
+                                break
+                        
+                        temp += str(chunk.get("content", ""))
 
+        # Finalize with additional chat logic
         self.interpreter.chat(f"If any, write the code from your history in a new file that does not already exist in the {self.path} directory with open, else skip. Use proper formatting and no '\\n's")
+
         self.save_history()
         self.summary = self.generate_summary(self.parse_output(messages))
 
@@ -155,3 +203,18 @@ class Coder:
 
 if __name__ == "__main__":
     c = Coder("1")
+    sample_message = {
+
+        {"role": "assistant", "type": "code", "format": "python", "start": True},
+
+        {"role": "assistant", "type": "code", "format": "python", "content": "34"},
+
+        {"role": "assistant", "type": "code", "format": "python", "content": " /"},
+
+        {"role": "assistant", "type": "code", "format": "python", "content": " "},
+
+        {"role": "assistant", "type": "code", "format": "python", "content": "24"},
+
+        {"role": "assistant", "type": "code", "format": "python", "end": True}
+
+    }
