@@ -290,8 +290,8 @@ def chatGPT(project_name, original_query):
                     
                 elif func == "summary_text":
                     prevcall = "summary_text"
-                    response = parameter['message']
-                    response = response.replace("", "")
+                    response = (parameter['message'])
+                    response = response.replace("`", "")
                     out = json.dumps({"summary_text": response})
                     yield out.encode("utf-8") + b"\n"
                     update_db(project_name, {"summary_text": response})
