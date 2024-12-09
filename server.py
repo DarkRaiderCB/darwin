@@ -24,6 +24,7 @@ from functions.call_function import function_dict
 from functions.extract_web_links import extract_links, scrape_pdf
 import copy
 import traceback
+#hello
 
 
 # Initialize FastAPI app
@@ -252,7 +253,7 @@ def chatGPT(project_name, original_query):
                 delta_content = token.choices[0].delta.content
                 print(delta_content, end="", flush=True)
                 result += delta_content
-        if "```" not in result:
+        if not result.startswith("```"):
             result = "```" + result + "```"
         print("\n\nResult: \n", result)
         functions = extract_function_names(result)
